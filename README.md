@@ -293,5 +293,11 @@ python scripts/identify_platform.py --backend mujoco  # motor lag, odometry scal
 python scripts/run_experiments.py                     # repeated trials
 ```
 
+**AI Declaration**
+
+NONE
+
+**acknowledged sources**
+
 
 
