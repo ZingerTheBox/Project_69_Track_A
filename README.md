@@ -82,9 +82,19 @@ A = [[ 0,    ω_r,  0  ],        B = [[-1,  0],
 This model is discretised at the control period and used for the LQR and for the controllability analysis below.
 
 **LQR tracker.** `[v, ω] = [v_ref, ω_ref] − K·e`, with `e` the pose error in the robot frame and `K` gain-scheduled on the reference speeds.
-Q = diag([10, 10, 5]), R = diag([1, 1]).
 
-**PID tracker.** Same error `e`, with separate gains on along-track, cross-track and heading error plus clamped integral terms.
+`Q = diag(34.7, 138.9, 11.4)`, `R = diag(12.5, 0.195)`
+
+The weights follow Bryson's rule, `1 / (2 · max²)` for the largest acceptable error or input: 0.12 m along-track, 0.06 m cross-track and 12° heading for `Q`; 0.2 m/s and 1.6 rad/s for `R`. The cross-track weight is the largest because a lateral error can only be removed by steering, and the tightest allowed error (6 cm) keeps the robot on the planned path around obstacles. At `v_r = 0.18 m/s` the discrete closed-loop poles are about 0.92, 0.685 and 0.969, so the loop is stable (max |z| ≈ 0.969).
+
+**PI tracker** (`--tracker pid`). A comparison baseline with the same error `e`:
+
+```
+v = v_ref·cos(e_θ) + k_x·e_x + k_ix·∫e_x
+ω = ω_ref + v_ref·(k_y·e_y + k_iy·∫e_y) + k_θ·sin(e_θ)
+```
+
+There is no derivative term, so this is a PI law with a proportional heading term, not a full PID. The integrals are clamped to ±0.15.
 
 | k_x | k_y | k_θ | k_ix | k_iy | integral limit |
 |---|---|---|---|---|---|
