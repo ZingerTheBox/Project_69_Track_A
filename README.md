@@ -69,6 +69,18 @@ python main.py --backend mujoco --disturb --video --tag disturbed
 |---|---|---|---|
 | [0.18m/s] | [0.10m/s^2] | [0.05m/s^2] | [0.02m] |
 
+Why these values: cruise speed is about 80 % of `V_MAX` (0.22 m/s), which leaves headroom for the tracker's corrections (the commanded speed reaches the 0.22 m/s limit during the re-plan). The 0.10 m inflation margin on top of the robot radius absorbs the 1 to 3 cm tracking and estimation errors seen in the results below.
+
+**Tracking-error model.** The error is expressed in the robot frame, `e = [e_x, e_y, e_θ]` (along-track, cross-track, heading). Linearising about the reference `(v_r, ω_r)` gives `ė = A e + B δu` with `δu = [v − v_r, ω − ω_r]`:
+
+```
+A = [[ 0,    ω_r,  0  ],        B = [[-1,  0],
+     [-ω_r,  0,    v_r],             [ 0,  0],
+     [ 0,    0,    0  ]]             [ 0, -1]]
+```
+
+This model is discretised at the control period and used for the LQR and for the controllability analysis below.
+
 **LQR tracker.** `[v, ω] = [v_ref, ω_ref] − K·e`, with `e` the pose error in the robot frame and `K` gain-scheduled on the reference speeds.
 Q = diag([10, 10, 5]), R = diag([1, 1]).
 
