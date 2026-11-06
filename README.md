@@ -110,15 +110,6 @@ Cross-track RMSE is measured on the **estimated** pose against the reference.
 
 ## Estimation and Model Analysis
 
-**Estimators** 
-*UKF*
-<img width="1801" height="1135" alt="image" src="https://github.com/user-attachments/assets/ece9d6b7-010f-4db6-a9bf-cee45b86420f" />
-*Odometry only*
-<img width="1804" height="1135" alt="image" src="https://github.com/user-attachments/assets/1cf08c41-fe4b-4f6e-9da4-565ea59c5f84" />
-*EKF*
-<img width="1801" height="1135" alt="image" src="https://github.com/user-attachments/assets/8181bbc1-f601-4331-a325-83afa333d0d5" />
-
-
 - **Prediction:** wheel travel `u = (Δs_L, Δs_R)` from the encoders drives a unicycle model. Odometry noise grows with distance travelled: each wheel has variance `ODOM_K·|Δs| + ODOM_FLOOR²`, propagated to the state through the input Jacobian: `Qd = Q_SCALE · G · diag(var) · Gᵀ`.
 - **Update:** range and bearing to ArUco markers at known map positions (from camera + PnP). The measurement noise grows with range: `R = R_SCALE · diag[(a₀ + a₂r²)², (b₀ + b₁r)²]`.
 - **EKF:** linearised update with the Joseph-form covariance (keeps P symmetric and positive definite) and a wrapped bearing residual.
@@ -128,41 +119,74 @@ Cross-track RMSE is measured on the **estimated** pose against the reference.
 
 | Parameter | Value |
 |---|---|
-| Initial std (position, heading) `P0_XY`, `P0_TH` | [0.1] m, [0.1] rad |
-| Odometry noise `ODOM_K`, `ODOM_FLOOR` | [4x10^-4], [1x10^-4] |
-| Range noise `RNG_A0`, `RNG_A2` | [0.012], [0.008], [so σ_r = 0.012 + 0.008·r²] |
-| Bearing noise `BRG_B0`, `BRG_B1` | [0.004], [0.0005], [so σ_b = 0.004 + 0.0005·r] |
-| Tuning scales `Q_SCALE`, `R_SCALE` | [4.0], [1.0] |
-| Gate `GATE_CHI2` | [9.21 (99% chi-square threshold for 2 degrees of freedom)] |
+| Initial std (position, heading) `P0_XY`, `P0_TH` | 0.1 m, 0.1 rad |
+| Odometry noise `ODOM_K`, `ODOM_FLOOR` | 4×10⁻⁴, 1×10⁻⁴ |
+| Range noise `RNG_A0`, `RNG_A2` | 0.012, 0.008 (σ_r = 0.012 + 0.008·r²) |
+| Bearing noise `BRG_B0`, `BRG_B1` | 0.004, 0.0005 (σ_b = 0.004 + 0.0005·r) |
+| Tuning scales `Q_SCALE`, `R_SCALE` | 4.0, 1.0 |
+| Gate `GATE_CHI2` | 9.21 (99 % chi-square threshold for 2 degrees of freedom) |
 | UKF α, β, κ | 0.5, 2.0, 0.0 |
+
+**Why these values.**
+
+- **`Q_SCALE = 4`:** odometry is biased as well as noisy. The simulator's true odometry variance (6×10⁻⁴ per metre) is higher than the filter's assumed 4×10⁻⁴, and the wheel radius and track width carry small scale errors. We checked this with a noise sweep (`scripts/run_experiments.py`, `results/fig_noise_sweep.png`: Q and R scaled to 0.25×, 1× and 4× of the configured values, 30 trials per setting). Cutting Q to a quarter, which is an effective `Q_SCALE` of 1, gave 6 to 10 failed trials in 30, against at most 2 in 30 at the configured Q.
+- **`R_SCALE = 1`:** the measurement noise comes from calibration (next bullet), and the result is insensitive to it: scaling R to 0.25× or 4× each gave 1 failed trial in 30.
+- **Range and bearing noise:** fitted from simulated detections against ground truth with `scripts/calibrate_sensor.py` (`results/sensor_calibration_twin.png`). Range noise grows with r² because the marker's size in pixels shrinks with distance, and bearing noise grows roughly linearly.
+- **`GATE_CHI2 = 9.21`:** the 99 % chi-square value for a 2-D innovation. It rejects clear outliers (about 1 % of good updates in expectation). Its cost is discussed in the failure analysis.
+- **`P0 = 0.1 m, 0.1 rad`:** the start pose prior is uncertain by about 10 cm and 6°, which matches the covariance at t = 0 in the plots.
+- **UKF `α = 0.5, β = 2, κ = 0`:** `β = 2` is the standard choice for Gaussian states, and `α` sets a moderate spread of the sigma points.
 
 The estimators only receive encoder travel and marker range/bearing. They never receive ground truth.
 
-**Model analysis**
-<img width="1920" height="672" alt="image" src="https://github.com/user-attachments/assets/7dd9d0f7-12a0-4ebf-93cb-659d388c10c5" />
+**Estimation plots** (disturbed scenario, one plot per estimator; left: error against the ±3σ band, right: NEES, NIS and the filter's own uncertainty):
 
+*EKF*
 
-- *Controllability* of the linearised tracking-error model [FILL: rank at each reference speed, from the output]. It loses rank at standstill (`v_r = w_r = 0`), and the plot shows the smallest singular value falling to zero as `v_r → 0`. Adding the motor lag gives a 5-state model [FILL: rank, /5].
-- *LQR closed loop:* at `v_r = 0.18 m/s` the discrete closed-loop poles are [FILL], with max |z| = [FILL] (< 1 means stable).
+<img src="https://github.com/user-attachments/assets/8181bbc1-f601-4331-a325-83afa333d0d5" alt="EKF estimation, disturbed scenario" width="800" style="max-width:100%; height:auto;">
+
+*UKF*
+
+<img src="https://github.com/user-attachments/assets/ece9d6b7-010f-4db6-a9bf-cee45b86420f" alt="UKF estimation, disturbed scenario" width="800" style="max-width:100%; height:auto;">
+
+*Odometry only*
+
+<img src="https://github.com/user-attachments/assets/1cf08c41-fe4b-4f6e-9da4-565ea59c5f84" alt="Odometry-only estimation, disturbed scenario" width="800" style="max-width:100%; height:auto;">
+
+**Reading the consistency numbers.**
+
+- **Nominal:** in the single MuJoCo trials mean NEES is 0.63 to 0.95 (ideal 3) and mean NIS is 0.07 to 0.10 (ideal 2). Both are below ideal, so the filter is **conservative**: its stated uncertainty is larger than its real error. This is the result of the inflated `Q_SCALE`, and it is the safe direction for a filter that gates its own updates. Averaged over 30 kinematic trials the nominal NEES is 2.67, close to the ideal 3, while the mean NIS of 0.70 is still below 2.
+- **Disturbed:** mean NEES rises to about 29 in the MuJoCo trial and to 13.8 over 30 kinematic trials (ideal 3), so the filter is **over-confident**. The mean is dominated by two short excursions: the slip window around 15 to 20 s, where NEES peaks near 60 and then recovers, and a jump near the end of the run. Outside those, NEES stays inside the 99 % band. Slip and shoves are not in the filter's model, so it cannot predict errors of that size.
+- **Mean NIS stays at about 0.4** in the disturbed run because the gated-out updates are excluded from the average.
+
+**Model analysis** (`python scripts/analyse_model.py`)
+
+<img src="https://github.com/user-attachments/assets/7dd9d0f7-12a0-4ebf-93cb-659d388c10c5" alt="Controllability and observability analysis" width="900" style="max-width:100%; height:auto;">
+
+- *Controllability* of the linearised tracking-error model: rank 2/3 at standstill (`v_r = w_r = 0`), where `A = 0` and only the two input directions can be reached. It is rank 3/3 for every moving or turning reference tested: (v_r, w_r) = (0.03, 0), (0.18, 0), (0, 0.5) and (0.18, 0.4). With the first-order motor lag the model has 5 states and is 5/5 controllable at 0.18 m/s. The plot shows the smallest singular value rising linearly with `v_r`, which is why the planner never commands less than 0.03 m/s.
+- *LQR closed loop:* at `v_r = 0.18 m/s` the discrete closed-loop poles are about 0.92, 0.685 and 0.969, with max |z| ≈ 0.969 (below 1, so stable).
 - *Observability* of `[x, y, θ]` from camera range-bearing, over a short window:
 
 | Case | Rank | Meaning |
 |---|---|---|
-| no marker | [0]/3 | No measurements, so only dead reckoning is possible and the covariance grows with distance travelled. |
-| 1 marker, static | [2]/3 | One range-bearing fix gives 2 constraints for 3 unknowns, so one direction of the pose is unobservable.|
-| 2 markers, static | [3]/3 | Two markers give 4 constraints, so the full pose is observable even without motion.|
-| 1 marker, driving an arc | [2]/3 | Driving does not fix the ambiguity|
-| 3 markers, driving | [3]/3 | Full rank with the largest singular values, so the best-conditioned case.|
+| no marker | 0/3 | No measurements, so only dead reckoning is possible and the covariance grows with distance travelled. |
+| 1 marker, static | 2/3 | One range-bearing fix gives 2 constraints for 3 unknowns, so one direction of the pose is unobservable. |
+| 2 markers, static | 3/3 | Two markers give 4 constraints, so the full pose is observable even without motion. |
+| 1 marker, driving an arc | 2/3 | Driving does not help: rotating the whole pose and path about the single marker leaves range, bearing and relative odometry unchanged. |
+| 3 markers, driving | 3/3 | Full rank with the largest singular values, so the best-conditioned case. |
 
+This is why the estimate degrades whenever fewer than two markers are visible, and why the uncertainty in the plots above grows between sightings and collapses when markers return.
 
-**Results**
+**Results** (MuJoCo backend, seed 3, LQR tracker, one trial per row):
 
-| Estimator | Position RMSE (cm) | Final dock error (cm / deg) | Cross-track RMSE (cm) | Mean NIS | Mean NEES | Min clearance (cm) | Collided | Success |
-|---|---:|---:|---:|---:|---:|---:|:---:|:---:|
-| Odometry only | 195.0 | 359.7 / 71.1 | 2.27 | n/a | 199.6 | -0.52 | Yes | No |
-| EKF | 2.70 | 2.35 / 6.15 | 1.29 | 0.41 | 28.8 | 0.84 | No | No |
-| UKF | 2.94 | 2.43 / 6.09 | 1.27 | 0.39 | 29.4 | 1.45 | No | No |
+| Scenario | Estimator | Position RMSE (cm) | Final dock error (cm / deg) | Cross-track RMSE (cm) | Mean NIS | Mean NEES | Min clearance (cm) | Collided | Success |
+|---|---|---:|---:|---:|---:|---:|---:|:---:|:---:|
+| Nominal | EKF | 1.56 | 0.23 / 0.29 | 0.96 | 0.10 | 0.95 | 3.61 | No | Yes |
+| Disturbed | Odometry only | 195.0 | 359.7 / 71.1 | 2.27 | n/a | 199.6 | -0.52 | Yes | No |
+| Disturbed | EKF | 2.70 | 2.35 / 6.15 | 1.29 | 0.41 | 28.8 | 0.84 | No | No |
+| Disturbed | UKF | 2.94 | 2.43 / 6.09 | 1.27 | 0.39 | 29.4 | 1.45 | No | No |
 
+- **Marker updates are essential.** Without them the position error grows to about 2 m RMSE under disturbance, the robot ends 3.6 m from the dock and collides.
+- **EKF and UKF perform almost identically** in these single trials (differences of a few tenths of a centimetre). Over 30 nominal trials each they also match: both succeed in 28 of 30, with a mean dock error of 0.34 cm (EKF) and 0.38 cm (UKF). The nominal comparison of all three estimators is in the Repeated Trials section. We do not claim either filter is better.
 
 Install Steps:
     py -m venv .venv
