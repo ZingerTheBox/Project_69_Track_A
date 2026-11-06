@@ -83,7 +83,14 @@ Q = diag([10, 10, 5]), R = diag([1, 1]).
 
 ## Estimation and Model Analysis
 
-**Estimators** (`--estimator odom | ekf | ukf`). All three estimate the pose `[x, y, θ]`.
+**Estimators** 
+*UKF*
+<img width="1801" height="1135" alt="image" src="https://github.com/user-attachments/assets/ece9d6b7-010f-4db6-a9bf-cee45b86420f" />
+*Odometry only*
+<img width="1804" height="1135" alt="image" src="https://github.com/user-attachments/assets/1cf08c41-fe4b-4f6e-9da4-565ea59c5f84" />
+*EKF*
+<img width="1801" height="1135" alt="image" src="https://github.com/user-attachments/assets/8181bbc1-f601-4331-a325-83afa333d0d5" />
+
 
 - **Prediction:** wheel travel `u = (Δs_L, Δs_R)` from the encoders drives a unicycle model. Odometry noise grows with distance travelled: each wheel has variance `ODOM_K·|Δs| + ODOM_FLOOR²`, propagated to the state through the input Jacobian: `Qd = Q_SCALE · G · diag(var) · Gᵀ`.
 - **Update:** range and bearing to ArUco markers at known map positions (from camera + PnP). The measurement noise grows with range: `R = R_SCALE · diag[(a₀ + a₂r²)², (b₀ + b₁r)²]`.
