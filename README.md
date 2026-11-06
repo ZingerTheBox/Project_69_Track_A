@@ -35,7 +35,10 @@ Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and 
 **Two simulation backends share one interface:** `mujoco` (real physics, rendered camera, ray-cast LiDAR; used for demos and the video) and `kinematic` (fast numpy twin, no graphics; used for many-trial studies).
 
 ## Demo Video
- 
+ <video width="100%" controls>
+  <source src="demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 **Link:** (link here)
  
 The video is 5 minutes or less and shows:
