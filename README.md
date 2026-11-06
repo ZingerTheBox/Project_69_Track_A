@@ -38,8 +38,7 @@ Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and 
   <source src="Video Project 4.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
-**Link:** (link here)
- 
+
 The video is 5 minutes or less and shows:
  
 - [ ] The robot completing the navigate-and-dock task (nominal trial).
