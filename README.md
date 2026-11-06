@@ -81,7 +81,7 @@ A = [[ 0,    ω_r,  0  ],        B = [[-1,  0],
 
 This model is discretised at the control period and used for the LQR and for the controllability analysis below.
 
-**LQR tracker.** `[v, ω] = [v_ref, ω_ref] − K·e`, with `e` the pose error in the robot frame and `K` gain-scheduled on the reference speeds.
+**LQR tracker.** `[v, ω] = [v_ref, ω_ref] − K·e`, with `K` computed from the discretised error model and gain-scheduled on the reference speeds (gains cached in bins of 0.02 m/s and 0.10 rad/s).
 
 `Q = diag(34.7, 138.9, 11.4)`, `R = diag(12.5, 0.195)`
 
