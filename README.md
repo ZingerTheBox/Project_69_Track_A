@@ -297,10 +297,12 @@ python scripts/run_experiments.py                     # repeated trials
 
 NONE
 
-**acknowledged sources**
+**Acknowledged sources**
 
 Weekly tutorials sources
+
 https://mujoco.org/
+
 Robotic toolbox
 
 
