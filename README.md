@@ -41,9 +41,9 @@ Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and 
 
 The video is 5 minutes or less and shows:
  
-- [ ] The robot completing the navigate-and-dock task (nominal trial).
-- [ ] At least one varied or disturbed trial (`--disturb`: 35 % wheel-slip window and a sideways/yaw shove, or a different `--seed`).
-- [ ] The estimate and its 2-sigma uncertainty ellipse alongside the true state (the dashboard video draws both).
+- The robot completing the navigate-and-dock task (nominal trial).
+- At least one varied or disturbed trial (`--disturb`: 35 % wheel-slip window and a sideways/yaw shove, or a different `--seed`).
+- The estimate and its 2-sigma uncertainty ellipse alongside the true state (the dashboard video draws both).
 To regenerate the footage:
  
 ```
