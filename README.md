@@ -198,6 +198,30 @@ This is why the estimate degrades whenever fewer than two markers are visible, a
 - **Marker updates are essential.** Without them the position error grows to about 2 m RMSE under disturbance, the robot ends 3.6 m from the dock and collides.
 - **EKF and UKF perform almost identically** in these single trials (differences of a few tenths of a centimetre). Over 30 nominal trials each they also match: both succeed in 28 of 30, with a mean dock error of 0.34 cm (EKF) and 0.38 cm (UKF). The nominal comparison of all three estimators is in the Repeated Trials section. We do not claim either filter is better.
 
+## Failure Analysis
+
+Both disturbed trials (LQR and PI) end with about 6° of heading error and about 2.4 cm of position error, and are scored as failures (success threshold: **TODO**, from `src/eval`).
+
+1. **The controller is not the cause.** Two different trackers fail the same way, and their cross-track errors on the estimated pose are small (1.3 and 1.95 cm). The tracker believes it is on the path while the true pose is off.
+2. **The estimate is the cause.** In the estimation plots, near the end of the run (about 37 s) the true pose steps by about 2 cm in y and 6° in heading (the sideways/yaw shove from `--disturb`; **TODO:** confirm the shove time against the scenario definition). The next marker updates have an NIS of 10² to 10³, far above the 9.21 gate, so every one of them is rejected (red crosses in the NIS panel, about 1.5 % of all updates). The filter keeps its old estimate while the truth has moved, and the run ends before an accepted update can correct it.
+3. **The root cause is the outlier gate.** It protects against bad detections but cannot tell them apart from a genuine jump in the robot's pose. A possible fix that we did not implement is to relax or reset the gate after several consecutive rejections, or to inflate the covariance when updates keep being rejected.
+4. **The slip window is handled.** At about 15 to 20 s the error briefly leaves the 3σ band and returns once markers are seen again.
+5. **Observability explains why the heading is hard to recover at the dock.** Near the dock the camera typically sees only one marker (marker 0). One marker leaves one direction of the pose unobservable (rank 2/3 in the observability analysis), so the heading is weakly constrained there. The failure classifier in `run_experiments.py` reports exactly this cause ("heading estimate poorly constrained by a single marker") for 2 of the 6 failed disturbed trials below, which is consistent with the 6° heading error above.
+
+**Failure causes over 30 trials per condition** (kinematic backend; diagnosis from `results/failures.csv`):
+
+| Condition | Failed | Diagnosis (number of trials) |
+|---|---:|---|
+| Nominal | 2/30 | collision after re-plan (2) |
+| Disturbed | 6/30 | collision after re-plan (3); final heading error, heading poorly constrained by a single marker (2); final pose error, estimator bias or tracker lag at the dock (1) |
+| Marker dropout 30 % | 1/30 | collision after re-plan (1) |
+| Marker dropout 60 % | 2/30 | collision after re-plan (2) |
+| PI tracker | 2/30 | collision after re-plan (1); unknown obstacle never re-planned (1) |
+| No re-plan | 27/30 | unknown obstacle never re-planned (27) |
+| Odometry only | 30/30 | collision after re-plan (18); final pose error (10); unknown obstacle never re-planned (2) |
+
+The most common failure when estimation works is a collision just after the re-plan around the hidden obstacle (9 of the 13 failures in the first five rows), not a docking error. The weak point of the pipeline is therefore the path margin and the localisation error near that obstacle.
+
 ## Repeated Trials
 
 Single trials are not enough to compare methods, so `scripts/run_experiments.py` repeats the task many times per condition. It ran 420 trials on the kinematic backend (30 trials per condition, 4 workers, 96 s). Per-trial results are in `results/experiments.csv`, failed trials with an automatic diagnosis are in `results/failures.csv`, and the figures are `results/fig_*.png`.
