@@ -21,7 +21,14 @@ Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and 
 **Pipeline:** `wheel encoders + camera (ArUco -> PnP -> range/bearing) + LiDAR` -> `EKF pose estimate` -> `A* planner` -> `LQR tracker` -> `wheel commands`
  
 **Model:** State `x = [x, y, θ]` (pose of the base in the world frame), input `u = (Δs_L, Δs_R)` wheel travel from the encoders. Motion is a mid-point unicycle step with `ds = (Δs_L + Δs_R)/2` and `Δθ = (Δs_R − Δs_L)/b`, where `b = 0.160 m` is the wheel separation. Commands `(v, ω)` map to wheel speeds through `r = 0.033 m`. The robot is a TurtleBot3 Burger (`V_MAX` 0.22 m/s, `W_MAX` 1.5 rad/s, collision radius 0.105 m). All platform constants are in `src/config.py`; the models are in `src/model.py`.
- 
+
+ **Modelling assumptions** (used by the estimator and controller):
+
+- Planar motion on a flat floor, rigid chassis, pure rolling of the wheels (no lateral slip). Slip and shoves exist only in the simulator as disturbances, so the estimator and controller do not model them.
+- Wheel radius and track width are known at their nominal values. The simulator perturbs them slightly, so odometry has a small scale error.
+- Marker positions and the three known obstacles are known in the world frame. The hidden obstacle is not.
+- Marker measurements are range and bearing with zero-mean Gaussian noise that grows with range.
+- 
 **Frames** (defined in `src/config.py`):
  
 | Frame | Origin | Axes |
