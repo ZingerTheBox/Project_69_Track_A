@@ -224,6 +224,17 @@ What the 30 trials show:
 
 The noise sweep (Q and R scaled to 0.25×, 1× and 4×, 30 trials per setting) is discussed under the estimator parameters above.
 
+## Limitations
+
+- **The MuJoCo results are single trials** (seed 3). The 30-trial statistics come only from the kinematic twin, and the same conditions were not repeated in MuJoCo.
+- **30 trials per condition gives wide intervals.** One trial is 3.3 percentage points, so differences of a few trials (for example 28/30 against 24/30) are not significant.
+- **Simulation only.** The sensor noise models were fitted to the simulator, so we make no claim about real hardware.
+- **What the results support:** marker updates and the LiDAR re-plan are both necessary for docking; EKF and UKF perform equivalently; LQR docks more accurately than the PI tracker at the same success rate; dropping up to 60 % of marker detections does not measurably reduce success.
+- **What they do not support:** any effect of the disturbance on the success rate, any ranking of EKF against UKF, or a transfer of the success rates to MuJoCo or real hardware. In the single disturbed MuJoCo trial both trackers fail for the same estimator-related reason, so that trial says little about the controllers.
+- **The estimator is over-confident under disturbance** (mean NEES 13.8 over 30 trials, 28.8 in the MuJoCo trial), and its outlier gate can block genuine corrections, as shown in the failure analysis.
+- **The weakest point of the pipeline is the re-plan around the hidden obstacle:** most failures with working estimation are collisions right after it.
+- **Model assumptions:** the estimator and controller assume planar motion with no lateral slip and known marker and obstacle positions. LiDAR is used for obstacle detection only, not for localisation.
+
 Install Steps:
     py -m venv .venv
     .venv\Scripts\activate
