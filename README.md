@@ -9,7 +9,7 @@
 | Photsatorn Wangsuphadilok | 14710976 | State estimation (`src/estimation`), model analysis (`scripts/analyse_model.py`), repository file structure. |
 | Sabina Kazkenova | 14628301 | Planning and control (`src/control`), platform identification (`scripts/identify_platform.py`), simulation (`src/sim`). |
 
-**Repository:** https://github.com/zingerthebox/Project_69_Track_A  *(check this link)*
+**Repository:** https://github.com/zingerthebox/Project_69_Track_A
 
 **Track:** Track A, mobile robot. A TurtleBot3-style differential-drive robot with a 2D LiDAR and a camera, simulated in MuJoCo. It navigates a room with obstacles and visually docks to an ArUco-marked charging station.
 Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and camera in MuJoCo. Navigate a room with obstacles using the LiDAR and visually dock to the ArUco-marked charging station.
