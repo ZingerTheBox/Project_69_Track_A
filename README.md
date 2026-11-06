@@ -1,5 +1,20 @@
 # Project_69_Track_A
+
+**Group 69**
+
+| Name | Student ID |
+|---|---|
+| [FILL teammate] | [FILL] |
+| [FILL, your name] | 14628301 |
+
+**Repository:** https://github.com/zingerthebox/Project_69_Track_A  *(check this link)*
+
+**Track:** Track A, mobile robot. A TurtleBot3-style differential-drive robot with a 2D LiDAR and a camera, simulated in MuJoCo. It navigates a room with obstacles and visually docks to an ArUco-marked charging station.
 Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and camera in MuJoCo. Navigate a room with obstacles using the LiDAR and visually dock to the ArUco-marked charging station.
+
+
+
+
 
 Install Steps:
     py -m venv .venv
