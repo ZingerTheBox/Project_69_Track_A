@@ -118,7 +118,6 @@ The estimators only receive encoder travel and marker range/bearing. They never 
 | 1 marker, driving an arc | [2]/3 | Driving does not fix the ambiguity|
 | 3 markers, driving | [3]/3 | Full rank with the largest singular values, so the best-conditioned case.|
 
-![Model analysis]()
 
 **Results**
 | Estimator | Position RMSE (cm) | Final dock error (cm / deg) | Cross-track RMSE (cm) | Mean NIS | Mean NEES | Min clearance (cm) | Collided | Success |
