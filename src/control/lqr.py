@@ -26,4 +26,8 @@ def lqr_track(xh, ref, q_scale=1.0, r_scale=1.0):
 
 def pid_track(xh, ref, integ):
 
-    Returns v, w, e, integ.
+    e = body_error(xh, ref)
+    integ = np.clip(integ + e[:2] * C.DT_CTRL, -C.I_MAX, C.I_MAX)
+    v = ref[3] * np.cos(e[2]) + C.KP_X * e[0] + C.KI_X * integ[0]
+    w = ref[4] + ref[3] * (C.KP_Y * e[1] + C.KI_Y * integ[1]) + C.KP_TH * np.sin(e[2])
+    return float(v), float(w), e, integ

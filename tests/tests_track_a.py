@@ -9,7 +9,7 @@ from src import config as C
 from src.control.lqr import body_error, lqr_track
 from src.estimation.ekf import P0, update
 from src.eval.metrics import summarise
-from src.model import (controllability_matrix, discretise, error_model, lqr_gain, observability_rank,rank_and_sv)
+from src.model import (controllability_matrix, discretise, error_model, lqr_gain, observability_rank, rank_and_sv)
 from src.pipeline import run_trial
 from src.utils import wrap
 from src.world import MARKER_BY_ID, make_scenario
