@@ -1,52 +1,30 @@
-"""
-mujoco_backend.py - the MuJoCo physics backend (needs mujoco >= 3.1).
-
-Same interface as KinematicBackend but everything comes from the engine. Physics
-runs at 200 Hz and the controller at 20 Hz, so 10 physics steps per control tick.
-Encoders are the wheel hinge angles quantised to ENCODER_TICKS per rev, the camera
-is an offscreen render of "cam" -> cv2.aruco -> solvePnP, lidar is 360 mj_ray calls
-from the "lidar" site (rays only see group 0, the world geoms).
-
-Slip: wheel friction drops to SLIP_MU and a viscous drag on the chassis pushes the
-wheels past their friction limit, so the encoders keep counting while the robot
-moves ~35 % less. Push: instant shift / yaw kick on the free joint.
-
-Headless: set MUJOCO_GL=egl (Linux GPU) or osmesa (software). On macOS the live
-viewer needs `mjpython main.py --viewer`.
-"""
-from __future__ import annotations
-
 import tempfile
 import time
 from pathlib import Path
-
 import cv2
 import numpy as np
-
 from .. import config as C
 from ..model import body_to_wheels, limit_command
-from ..perception.aruco import ArucoDetector, pnp_range_bearing
-from ..world import MARKER_BY_ID, Scenario, dock_pose
+from ..perception.aruco import detect_markers, min_side_px, pnp_range_bearing
+from ..utils import wrap
+from ..world import MARKER_BY_ID
 from . import mjcf
 
 try:
     import mujoco
-except ImportError as exc:  # pragma: no cover
-    raise ImportError("MuJoCo is not installed. Run:  pip install mujoco   (or use --backend kinematic)") from exc
+except ImportError as exc:
+    raise ImportError("MuJoCo is not installed. you need to run:  pip install mujoco   (or use --backend kinematic)") from exc
 
 SLIP_MU = 0.10
-SLIP_DRAG = 7.0  # N s/m, gives ~35 % speed loss at 0.18 m/s with SLIP_MU. Re-tuned after the
-                 # friction priority fix in mjcf.py, check with scripts/identify_platform.py
-
+SLIP_DRAG = 7.0
 
 class MujocoBackend:
     name = "mujoco"
-    _flip = None  # marker texture flip, probed once per process
+    _flip = None
 
     def __init__(self, realtime=False):
         self._tmp = tempfile.TemporaryDirectory(prefix="track_a_mjcf_")
         self.asset_dir = Path(self._tmp.name)
-        self.detector = ArucoDetector()
         self.realtime = realtime
         self._want_viewer = False
         self._viewer = None
@@ -71,19 +49,18 @@ class MujocoBackend:
         self.wheel_geoms = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, n) for n in ("wheel_l_geom", "wheel_r_geom")]
         self.mu0 = m.geom_friction[self.wheel_geoms, 0].copy()
         self.substeps = max(1, int(round(C.DT_CTRL / m.opt.timestep)))
-        self.group_mask = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)  # rays only see group 0
+        self.group_mask = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)
 
     def _probe_detects_dock(self):
-        # teleport 1 m in front of the dock marker, render, see if cv2.aruco finds it
         d = self.data
         q0 = d.qpos.copy()
         mx = MARKER_BY_ID[C.DOCK_ID]
         d.qpos[:2] = [mx.x + np.cos(mx.normal) * 1.0, mx.y + np.sin(mx.normal) * 1.0]
-        yaw = C.wrap(mx.normal + np.pi)
+        yaw = wrap(mx.normal + np.pi)
         d.qpos[3:7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
         mujoco.mj_forward(self.model, d)
         self.renderer.update_scene(d, camera="cam")
-        ok = C.DOCK_ID in self.detector.detect(self.renderer.render())
+        ok = C.DOCK_ID in detect_markers(self.renderer.render())
         d.qpos[:] = q0
         return ok
 
@@ -91,7 +68,7 @@ class MujocoBackend:
         self.sc = sc
         self.rng = np.random.default_rng(sc.seed + 2000)
         flips = [MujocoBackend._flip] if MujocoBackend._flip else [C.MARKER_FLIP] + [f for f in mjcf.FLIPS if f != C.MARKER_FLIP]
-        for f in flips:  # try flips until the marker is detected
+        for f in flips:
             self._load(sc, f)
             if self._probe_detects_dock():
                 if MujocoBackend._flip is None and f != C.MARKER_FLIP:
@@ -99,15 +76,14 @@ class MujocoBackend:
                 MujocoBackend._flip = f
                 break
         else:
-            raise RuntimeError("cv2.aruco cannot detect the dock marker in any MuJoCo render. "
-                               "Run  python scripts/check_setup.py  for a diagnosis.")
+            raise RuntimeError("cv2.aruco cannot detect the dock marker in any MuJoCo render. Run  python scripts/check_setup.py  for a diagnosis.")
         mujoco.mj_resetData(self.model, self.data)
         mujoco.mj_forward(self.model, self.data)
         self.ticks_prev = np.zeros(2, dtype=np.int64)
         self._pushed = [False] * len(sc.disturbances)
         self._slipping = False
         if self._want_viewer:
-            import mujoco.viewer as mj_viewer  # aliased, a bare import here would make `mujoco` a local name
+            import mujoco.viewer as mj_viewer
             self._viewer = mj_viewer.launch_passive(self.model, self.data)
 
     @property
@@ -158,11 +134,12 @@ class MujocoBackend:
         self.ticks_prev = ticks
         return float(d[0]), float(d[1])
 
+    def _yaw(self):
+        w, x, y, z = self.data.qpos[3:7]
+        return np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
     def truth(self):
-        # chassis pose [x, y, yaw] from the free joint, evaluation only
-        q = self.data.qpos
-        w, x, y, z = q[3:7]
-        return np.array([q[0], q[1], np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))])
+        return np.array([self.data.qpos[0], self.data.qpos[1], self._yaw()])
 
     def _render(self, cam):
         mujoco.mj_forward(self.model, self.data)
@@ -170,16 +147,14 @@ class MujocoBackend:
         return self.renderer.render()
 
     def camera(self):
-        # render, detect, PnP. Same (id, range, bearing) output as the kinematic twin
         img = self._render("cam")
         out = []
-        for mid, corners in self.detector.detect(img).items():
+        for mid, corners in detect_markers(img).items():
             if mid not in MARKER_BY_ID:
                 continue
             if self.sc.marker_dropout and self.rng.random() < self.sc.marker_dropout:
                 continue
-            side = np.min(np.hypot(*(corners - np.roll(corners, 1, axis=0)).T))
-            if side < C.CAM_MIN_SIDE_PX:
+            if min_side_px(corners) < C.CAM_MIN_SIDE_PX:
                 continue
             rb = pnp_range_bearing(corners, MARKER_BY_ID[mid].size)
             if rb is not None and rb[0] <= C.CAM_MAX_RANGE:
@@ -189,7 +164,7 @@ class MujocoBackend:
     def lidar(self):
         mujoco.mj_forward(self.model, self.data)
         origin = self.data.site_xpos[self.site_id].copy()
-        yaw = self.truth()[2]
+        yaw = self._yaw()
         geomid = np.zeros(1, dtype=np.int32)
         r = np.full(C.LIDAR_BEAMS, np.inf)
         for i, a in enumerate(yaw + np.linspace(0, 2 * np.pi, C.LIDAR_BEAMS, endpoint=False)):

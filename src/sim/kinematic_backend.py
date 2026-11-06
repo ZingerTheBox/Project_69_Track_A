@@ -1,15 +1,12 @@
-from __future__ import annotations
-
 import numpy as np
-
 from .. import config as C
 from ..model import body_to_wheels, limit_command
 from ..perception.aruco import synth_measurements
-from ..world import Scenario, raycast
+from ..utils import wrap
+from ..world import raycast
 
 SUBSTEPS = 5
-TRUE_ODOM_K = 6e-4  
-
+TRUE_ODOM_K = 6e-4
 
 class KinematicBackend:
     name = "kinematic"
@@ -19,8 +16,8 @@ class KinematicBackend:
         self.rng = np.random.default_rng(sc.seed + 1000)
         self.x = sc.start.astype(float).copy()
         self.t = 0.0
-        self.w_act = np.zeros(2)  # actual wheel speds
-        self.ang = np.zeros(2)  # wheel ang
+        self.w_act = np.zeros(2) #wheel dpeed
+        self.ang = np.zeros(2) #wheel ang
         self.ticks_prev = np.zeros(2, dtype=np.int64)
         self.R_true = C.WHEEL_RADIUS * (1 + np.array(sc.wheel_err))
         self.L_true = C.TRACK * (1 + sc.track_err)
@@ -30,7 +27,7 @@ class KinematicBackend:
         for d in self.sc.disturbances:
             if d.kind == "slip" and d.t0 <= self.t < d.t1:
                 s = d.params[0]
-                return np.array([1 - s, 1 - 0.6 * s])
+                return np.array([1 - s, 1 - 0.6 * s]) 
         return np.ones(2)
 
     def step(self, v, w):
@@ -47,11 +44,11 @@ class KinematicBackend:
             thm = self.x[2] + dth / 2
             self.x += np.array([ds * np.cos(thm), ds * np.sin(thm), dth])
             self.t += dt
-            for k, d in enumerate(self.sc.disturbances):  # pushes
+            for k, d in enumerate(self.sc.disturbances):
                 if d.kind == "push" and not self._pushed[k] and self.t >= d.t0:
                     self.x += np.array(d.params)
                     self._pushed[k] = True
-        self.x[2] = C.wrap(self.x[2])
+        self.x[2] = wrap(self.x[2])
 
     def read_encoders(self):
         ticks = np.round(self.ang / (2 * np.pi) * C.ENCODER_TICKS).astype(np.int64)

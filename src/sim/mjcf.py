@@ -1,55 +1,33 @@
-"""
-mjcf.py - builds the MuJoCo scene XML for one Scenario.
-
-Everything comes from config.py and world.py, so MuJoCo and the kinematic twin
-always agree on geometry.
-
-Scene: floor, four walls (0.30 m so the 0.14 m LiDAR plane hits them), cylinder
-obstacles (orange known ones, red hidden surprise), 9 ArUco marker planes, a
-TurtleBot3 Burger (free chassis, two velocity-driven wheels, two frictionless
-casters, camera "cam", LiDAR site "lidar") and an overhead camera "top" for the dashboard.
-
-Base frame is x forward, y left, origin at the axle centre. Camera sits at the same
-height as the markers (15 cm), LiDAR plane at 14 cm.
-"""
-from __future__ import annotations
-
-from pathlib import Path
-
 import cv2
 import numpy as np
-
 from .. import config as C
 from ..perception.aruco import marker_image
-from ..world import MARKER_Z, MARKERS, Scenario, dock_pose
+from ..world import MARKER_Z, MARKERS, dock_pose
 
-AXLE_Z = C.WHEEL_RADIUS + 0.0005  # base origin height above floor at t=0
-WHEEL_KV = 0.02  # velocity actuator gain, gives tau ~ 50 ms (see identify_platform.py)
+AXLE_Z = C.WHEEL_RADIUS + 0.0005 #hight
+WHEEL_KV = 0.02
 WALL_H = 0.30
 OBST_H = 0.40
-MARKER_PLANE_HALF = 0.1  # 0.15 m black square + one 0.025 m white cell each side
-CHASSIS_MASS = 0.9  # kg, Burger is ~1 kg total
+MARKER_PLANE_HALF = 0.1
+CHASSIS_MASS = 0.9
 
 FLIPS = ["none", "ud", "lr", "both"]
 
-
 def _f(*v):
     return " ".join(f"{x:.5f}" for x in v)
-
 
 def write_marker_pngs(asset_dir, flip):
     asset_dir.mkdir(parents=True, exist_ok=True)
     for m in MARKERS:
         g = marker_image(m.id, flip)
-        cv2.imwrite(str(asset_dir / f"aruco_{m.id}.png"), cv2.merge([g, g, g]))  # RGB png, safest for MuJoCo
-
+        cv2.imwrite(str(asset_dir / f"aruco_{m.id}.png"), cv2.merge([g, g, g]))
 
 def build_xml(sc, asset_dir, flip=None):
     flip = flip or C.MARKER_FLIP
     write_marker_pngs(asset_dir, flip)
     W, H, T = C.ROOM_W, C.ROOM_H, C.WALL_T
     x0, y0, th0 = sc.start
-    cam_h = MARKER_Z - AXLE_Z + 0.0005  # camera height in base frame
+    cam_h = MARKER_Z - AXLE_Z + 0.0005
     lid_h = C.LIDAR_Z - AXLE_Z + 0.0005
     L2 = C.TRACK / 2
 
@@ -75,7 +53,7 @@ def build_xml(sc, asset_dir, flip=None):
                      f'rgba="0.85 0.15 0.15 1"/>')
     for m in MARKERS:
         n = np.array([np.cos(m.normal), np.sin(m.normal)])
-        right, up = np.array([-n[1], n[0], 0.0]), np.array([0.0, 0.0, 1.0])  # viewer's right and up
+        right, up = np.array([-n[1], n[0], 0.0]), np.array([0.0, 0.0, 1.0])
         world.append(f'<geom name="marker_{m.id}" type="plane" pos="{_f(m.x, m.y, MARKER_Z)}" '
                      f'size="{_f(MARKER_PLANE_HALF, MARKER_PLANE_HALF, 0.001)}" xyaxes="{_f(*right, *up)}" '
                      f'material="mat_m{m.id}" contype="0" conaffinity="0" group="1"/>')
@@ -92,7 +70,7 @@ def build_xml(sc, asset_dir, flip=None):
             contype="0" conaffinity="0" group="2"/>
       <geom name="cam_box" type="box" size="0.01 0.03 0.015" pos="{_f(C.CAM_OFFSET[0] - 0.01, 0, cam_h)}" mass="0.01"
             rgba="0.9 0.9 0.9 1" contype="0" conaffinity="0" group="2"/>
-      <!-- priority=1 because MuJoCo mixes friction by max, so the casters would otherwise inherit the floor's mu=1 -->
+      <!-- priority=1 so the casters do not inherit the floor friction (MuJoCo mixes by max) -->
       <geom name="caster_f" type="sphere" size="0.008" pos="0.09 0 {-(C.WHEEL_RADIUS - 0.008):.5f}" mass="0.01"
             friction="0 0 0" condim="1" priority="1" group="2"/>
       <geom name="caster_b" type="sphere" size="0.008" pos="-0.09 0 {-(C.WHEEL_RADIUS - 0.008):.5f}" mass="0.01"
@@ -113,7 +91,7 @@ def build_xml(sc, asset_dir, flip=None):
 
     return f'''<mujoco model="track_a_docking">
   <compiler angle="radian" texturedir="{asset_dir.as_posix()}" autolimits="true"/>
-  <option timestep="0.005" gravity="0 0 -9.81" integrator="implicitfast"/>   <!-- implicit because of the stiff velocity actuators on light wheels -->
+  <option timestep="0.005" gravity="0 0 -9.81" integrator="implicitfast"/>
   <visual>
     <global offwidth="{C.IMG_W}" offheight="{C.IMG_H}"/>
     <headlight ambient="0.55 0.55 0.55" diffuse="0.5 0.5 0.5" specular="0 0 0"/>

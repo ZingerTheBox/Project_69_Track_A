@@ -1,195 +1,101 @@
-from __future__ import annotations
-
 import numpy as np
-
 from .. import config as C
+from ..model import F_uni, G_uni, H_rb, f_uni, h_rb
+from ..utils import wrap
 from ..world import MARKER_BY_ID
 
+P0 = np.diag([C.P0_XY**2, C.P0_XY**2, C.P0_TH**2]) #prior covariance
 
-def _odom_noise(dsl, dsr, p):
-    # wheel noise grows with distance moved, plus a small constant floor
-    var_l = p.odom_k * abs(dsl) + p.odom_floor ** 2
-    var_r = p.odom_k * abs(dsr) + p.odom_floor ** 2
-    return np.array([var_l, var_r])
+def odom_cov(xh, u, q_scale=C.Q_SCALE): # noise models
+    var = np.array([C.ODOM_K * abs(u[0]) + C.ODOM_FLOOR**2,
+                    C.ODOM_K * abs(u[1]) + C.ODOM_FLOOR**2])
+    G = G_uni(xh, u)
+    return q_scale * G @ np.diag(var) @ G.T
 
+def meas_cov(r, r_scale=C.R_SCALE):
+    return r_scale * np.diag([(C.RNG_A0 + C.RNG_A2 * r * r) ** 2,
+                              (C.BRG_B0 + C.BRG_B1 * r) ** 2])
 
-def _motion(x, dsl, dsr):
-    # differential drive, using the midpoint heading for the position update
-    ds = 0.5 * (dsl + dsr)
-    dth = (dsr - dsl) / C.TRACK
-    th_mid = x[2] + 0.5 * dth
-    return np.array([
-        x[0] + ds * np.cos(th_mid),
-        x[1] + ds * np.sin(th_mid),
-        x[2] + dth,
-    ])
+def rb_residual(y, y_hat):
+    return np.array([y[0] - y_hat[0], wrap(y[1] - y_hat[1])])
 
+def nis_of(nu, S):
+    return float(nu @ np.linalg.solve(S, nu))
+    
+def ekf_predict(xh, P, u, f, F_jac, Qd): # EKF
+    F = F_jac(xh, u)
+    return f(xh, u), F @ P @ F.T + Qd
 
-def _motion_jacobians(x, dsl, dsr):
-    ds = 0.5 * (dsl + dsr)
-    dth = (dsr - dsl) / C.TRACK
-    th_mid = x[2] + 0.5 * dth
-    c, s, L = np.cos(th_mid), np.sin(th_mid), C.TRACK
+def ekf_update(xh_pred, P_pred, y, h, H_jac, Rn, residual=None, gate=None):
+    y_hat = h(xh_pred)
+    H = H_jac(xh_pred)
+    nu = (y - y_hat) if residual is None else residual(y, y_hat)
+    S = H @ P_pred @ H.T + Rn
+    if gate is not None and nis_of(nu, S) > gate:
+        return xh_pred, P_pred, nu, S, False
+    K = P_pred @ H.T @ np.linalg.inv(S)
+    xh = xh_pred + K @ nu
+    I_KH = np.eye(len(xh_pred)) - K @ H
+    P = I_KH @ P_pred @ I_KH.T + K @ Rn @ K.T
+    return xh, 0.5 * (P + P.T), nu, S, True
 
-    # F: d(motion)/d(state), G: d(motion)/d(wheel distances)
-    F = np.array([
-        [1, 0, -ds * s],
-        [0, 1, ds * c],
-        [0, 0, 1.0],
-    ])
-    G = np.array([
-        [0.5 * c + ds * s / (2 * L), 0.5 * c - ds * s / (2 * L)],
-        [0.5 * s - ds * c / (2 * L), 0.5 * s + ds * c / (2 * L)],
-        [-1 / L, 1 / L],
-    ])
-    return F, G
+N_UKF = 3 
+ALPHA, BETA, KAPPA = 0.5, 2.0, 0.0
+LAM = ALPHA**2 * (N_UKF + KAPPA) - N_UKF
+WM = np.full(2 * N_UKF + 1, 0.5 / (N_UKF + LAM))
+WC = WM.copy()
+WM[0] = LAM / (N_UKF + LAM)
+WC[0] = LAM / (N_UKF + LAM) + 1 - ALPHA**2 + BETA
 
+def sigma_points(xh, P):
+    L = np.linalg.cholesky((N_UKF + LAM) * P + 1e-12 * np.eye(N_UKF))
+    return np.array([xh] + [xh + L[:, i] for i in range(N_UKF)] + [xh - L[:, i] for i in range(N_UKF)])
 
-def _h(x, m):
-    # expected range and bearing to marker m from pose x
-    d = m - x[:2]
-    rng = np.hypot(d[0], d[1])
-    brg = C.wrap(np.arctan2(d[1], d[0]) - x[2])
-    return np.array([rng, brg])
+def mean_pose(X, W):
+    m = W @ X
+    m[2] = np.arctan2(W @ np.sin(X[:, 2]), W @ np.cos(X[:, 2]))
+    return m
 
+def ukf_predict(xh, P, u, f, Qd):
+    X = np.array([f(s, u) for s in sigma_points(xh, P)])
+    xm = mean_pose(X, WM)
+    D = X - xm
+    D[:, 2] = wrap(D[:, 2])
+    return xm, (WC[:, None] * D).T @ D + Qd
 
-def _meas_cov(r, p):
-    # camera noise gets worse the further away the marker is
-    sig_r = p.rng_a0 + p.rng_a2 * r * r
-    sig_b = p.brg_b0 + p.brg_b1 * r
-    return p.r_scale * np.diag([sig_r ** 2, sig_b ** 2])
+def ukf_update(xh, P, y, h, Rn, gate=None):
+    X = sigma_points(xh, P)
+    Z = np.array([h(s) for s in X])
+    zm = np.array([WM @ Z[:, 0], np.arctan2(WM @ np.sin(Z[:, 1]), WM @ np.cos(Z[:, 1]))])
+    dZ, dX = Z - zm, X - xh
+    dZ[:, 1], dX[:, 2] = wrap(dZ[:, 1]), wrap(dX[:, 2])
+    S = (WC[:, None] * dZ).T @ dZ + Rn
+    Pxz = (WC[:, None] * dX).T @ dZ
+    nu = rb_residual(y, zm)
+    if gate is not None and nis_of(nu, S) > gate:
+        return xh, P, nu, S, False
+    K = Pxz @ np.linalg.inv(S)
+    P = P - K @ S @ K.T
+    return xh + K @ nu, 0.5 * (P + P.T), nu, S, True
 
+def predict(xh, P, u, kind="ekf", q_scale=C.Q_SCALE):
+    Qd = odom_cov(xh, u, q_scale)
+    if kind == "ukf":
+        xh, P = ukf_predict(xh, P, u, f_uni, Qd)
+    else:
+        xh, P = ekf_predict(xh, P, u, f_uni, F_uni, Qd)
+    xh[2] = wrap(xh[2])
+    return xh, P
 
-class DeadReckoning:
-    name = "odom"
-
-    def __init__(self, x0, params=None):
-        self.p = params or C.EKFParams()
-        self.x = np.asarray(x0, float).copy()
-        self.P = np.diag([self.p.p0_xy ** 2, self.p.p0_xy ** 2, self.p.p0_th ** 2])
-
-    def predict(self, dsl, dsr):
-        F, G = _motion_jacobians(self.x, dsl, dsr)
-        Q = self.p.q_scale * G @ np.diag(_odom_noise(dsl, dsr, self.p)) @ G.T
-        self.P = F @ self.P @ F.T + Q
-        self.x = _motion(self.x, dsl, dsr)
-        self.x[2] = C.wrap(self.x[2])
-
-    def update(self, mid, r, b):
-        # no sensor correction, so this is plain dead reckoning
-        return float("nan"), False
-
-
-class EKF(DeadReckoning):
-    name = "EKF"
-
-    def update(self, mid, r, b):
-        m = MARKER_BY_ID[mid].pos
-        d = m - self.x[:2]
-        q = max(d @ d, 1e-9)  # avoid dividing by zero if we're on top of the marker
-        rho = np.sqrt(q)
-
-        H = np.array([
-            [-d[0] / rho, -d[1] / rho, 0.0],
-            [d[1] / q, -d[0] / q, -1.0],
-        ])
-        R = _meas_cov(r, self.p)
-
-        nu = np.array([r, b]) - _h(self.x, m)
-        nu[1] = C.wrap(nu[1])
-        S = H @ self.P @ H.T + R
-
-        # chi-square gate on the normalised innovation, skip outliers
-        nis = float(nu @ np.linalg.solve(S, nu))
-        if nis > self.p.gate_chi2:
-            return nis, False
-
-        K = self.P @ H.T @ np.linalg.inv(S)
-        self.x = self.x + K @ nu
-        self.x[2] = C.wrap(self.x[2])
-
-        # Joseph form keeps P symmetric and positive definite
-        I_KH = np.eye(3) - K @ H
-        self.P = I_KH @ self.P @ I_KH.T + K @ R @ K.T
-        self.P = 0.5 * (self.P + self.P.T)
-        return nis, True
-
-
-class UKF(DeadReckoning):
-    name = "UKF"
-    ALPHA, BETA, KAPPA = 0.5, 2.0, 0.0
-
-    def __init__(self, x0, params=None):
-        super().__init__(x0, params)
-        n = 3
-        lam = self.ALPHA ** 2 * (n + self.KAPPA) - n
-        self.lam = lam
-
-        # sigma point weights
-        self.Wm = np.full(2 * n + 1, 0.5 / (n + lam))
-        self.Wc = self.Wm.copy()
-        self.Wm[0] = lam / (n + lam)
-        self.Wc[0] = lam / (n + lam) + 1 - self.ALPHA ** 2 + self.BETA
-
-    def _sigma(self, x, P):
-        n = 3
-        # tiny jitter so cholesky doesn't fail when P gets close to singular
-        L = np.linalg.cholesky((n + self.lam) * P + 1e-12 * np.eye(n))
-        pts = [x]
-        for i in range(n):
-            pts.append(x + L[:, i])
-        for i in range(n):
-            pts.append(x - L[:, i])
-        return np.array(pts)
-
-    @staticmethod
-    def _mean_pose(S, W):
-        # angles can't be averaged directly, so go through sin/cos
-        m = W @ S
-        m[2] = np.arctan2(W @ np.sin(S[:, 2]), W @ np.cos(S[:, 2]))
-        return m
-
-    def predict(self, dsl, dsr):
-        _, G = _motion_jacobians(self.x, dsl, dsr)
-        Q = self.p.q_scale * G @ np.diag(_odom_noise(dsl, dsr, self.p)) @ G.T
-
-        X = np.array([_motion(s, dsl, dsr) for s in self._sigma(self.x, self.P)])
-        xm = self._mean_pose(X, self.Wm)
-        D = X - xm
-        D[:, 2] = C.wrap(D[:, 2])
-
-        self.P = (self.Wc[:, None] * D).T @ D + Q
-        self.x = xm
-        self.x[2] = C.wrap(self.x[2])
-
-    def update(self, mid, r, b):
-        m = MARKER_BY_ID[mid].pos
-        X = self._sigma(self.x, self.P)
-        Z = np.array([_h(s, m) for s in X])
-
-        z_rng = self.Wm @ Z[:, 0]
-        z_brg = np.arctan2(self.Wm @ np.sin(Z[:, 1]), self.Wm @ np.cos(Z[:, 1]))
-        zm = np.array([z_rng, z_brg])
-
-        dZ = Z - zm
-        dX = X - self.x
-        dZ[:, 1] = C.wrap(dZ[:, 1])
-        dX[:, 2] = C.wrap(dX[:, 2])
-
-        R = _meas_cov(r, self.p)
-        S = (self.Wc[:, None] * dZ).T @ dZ + R
-        Pxz = (self.Wc[:, None] * dX).T @ dZ
-
-        nu = np.array([r, b]) - zm
-        nu[1] = C.wrap(nu[1])
-
-        nis = float(nu @ np.linalg.solve(S, nu))
-        if nis > self.p.gate_chi2:
-            return nis, False
-
-        K = Pxz @ np.linalg.inv(S)
-        self.x = self.x + K @ nu
-        self.x[2] = C.wrap(self.x[2])
-        self.P = self.P - K @ S @ K.T
-        self.P = 0.5 * (self.P + self.P.T)
-        return nis, True
+def update(xh, P, mid, r, b, kind="ekf", r_scale=C.R_SCALE):
+    if kind == "odom":
+        return xh, P, float("nan"), False
+    mk = MARKER_BY_ID[mid].pos
+    y, Rn = np.array([r, b]), meas_cov(r, r_scale)
+    if kind == "ukf":
+        xh, P, nu, S, ok = ukf_update(xh, P, y, lambda s: h_rb(s, mk), Rn, C.GATE_CHI2)
+    else:
+        xh, P, nu, S, ok = ekf_update(xh, P, y, lambda s: h_rb(s, mk), lambda s: H_rb(s, mk), Rn, rb_residual, C.GATE_CHI2)
+    if ok:
+        xh[2] = wrap(xh[2])
+    return xh, P, nis_of(nu, S), ok
