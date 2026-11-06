@@ -74,6 +74,7 @@ Q = diag([10, 10, 5]), R = diag([1, 1]).
 **Ground truth.** The backends expose it only through `truth()`, marked evaluation-only. It goes to the logger and metrics, never to the estimator, planner or controller.
 
 **Results**
+
 | Tracker | Scenario | Cross-track RMSE (cm) | Final dock error (cm / deg) | Time (s) | Replans | Min clearance (cm) | Control effort | Collided | Success |
 |---|---|---:|---:|---:|---:|---:|---:|:---:|:---:|
 | LQR | Nominal | 0.96 | 0.23 / 0.29 | 37.2 | 1 | 3.61 | 5.08 | No | Yes |
@@ -129,6 +130,7 @@ The estimators only receive encoder travel and marker range/bearing. They never 
 
 
 **Results**
+
 | Estimator | Position RMSE (cm) | Final dock error (cm / deg) | Cross-track RMSE (cm) | Mean NIS | Mean NEES | Min clearance (cm) | Collided | Success |
 |---|---:|---:|---:|---:|---:|---:|:---:|:---:|
 | Odometry only | 195.0 | 359.7 / 71.1 | 2.27 | n/a | 199.6 | -0.52 | Yes | No |
