@@ -2,20 +2,53 @@
 
 **Group 69**
 
-| Name | Student ID |
-
-| [Christian Wuhrer] | 25877919 |
-
-| [Flynn McDermott] | 25840277 |
-
-| [Sabina Kazkenova] | 14628301 |
-
-| [Photsatorn Wangsuphadilok] | 14710976 |
+| Member | Student ID | Contribution |
+|---|---|---|
+| Christian Wuhrer | 25877919 | `README`, `requirements.txt`, evaluation (`src/eval`), sensor calibration (`scripts/calibrate_sensor.py`). |
+| Flynn McDermott | 25840277 | Perception (`src/perception`: ArUco camera pipeline and LiDAR obstacle detection), `scripts/check_setup.py`, `scripts/run_experiments.py`, project page deliverables. |
+| Photsatorn Wangsuphadilok | 14710976 | State estimation (`src/estimation`), model analysis (`scripts/analyse_model.py`), repository file structure. |
+| Sabina Kazkenova | 14628301 | Planning and control (`src/control`), platform identification (`scripts/identify_platform.py`), simulation (`src/sim`). |
 
 **Repository:** https://github.com/zingerthebox/Project_69_Track_A  *(check this link)*
 
 **Track:** Track A, mobile robot. A TurtleBot3-style differential-drive robot with a 2D LiDAR and a camera, simulated in MuJoCo. It navigates a room with obstacles and visually docks to an ArUco-marked charging station.
 Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and camera in MuJoCo. Navigate a room with obstacles using the LiDAR and visually dock to the ArUco-marked charging station.
+
+## Project Overview
+ 
+**Task:** The robot starts at a random pose in a 6 m x 5 m room, avoids three known obstacles and one hidden obstacle (detected with LiDAR and re-planned around), and docks 30 cm in front of ArUco marker 0. It is controlled from its **estimated** pose only.
+ 
+**Pipeline:** `wheel encoders + camera (ArUco -> PnP -> range/bearing) + LiDAR` -> `EKF pose estimate` -> `A* planner` -> `LQR tracker` -> `wheel commands`
+ 
+**Model:** State `x = [x, y, θ]` (pose of the base in the world frame), input `u = (Δs_L, Δs_R)` wheel travel from the encoders. Motion is a mid-point unicycle step with `ds = (Δs_L + Δs_R)/2` and `Δθ = (Δs_R − Δs_L)/b`, where `b = 0.160 m` is the wheel separation. Commands `(v, ω)` map to wheel speeds through `r = 0.033 m`. The robot is a TurtleBot3 Burger (`V_MAX` 0.22 m/s, `W_MAX` 1.5 rad/s, collision radius 0.105 m). All platform constants are in `src/config.py`; the models are in `src/model.py`.
+ 
+**Frames** (defined in `src/config.py`):
+ 
+| Frame | Origin | Axes |
+|---|---|---|
+| World `W` | Room corner | x east, y north, θ counter-clockwise from +x |
+| Base `B` | Wheel-axle centre | x forward, y left |
+| Camera `C` | Camera at `[0.07, 0, 0.15]` m in `B` | OpenCV: x right, y down, z forward |
+ 
+**Frame diagram:** (to insert an image of: the world, base and camera frames, the ArUco markers on the walls, and the dock pose 0.30 m in front of marker 0.)
+ 
+**Two simulation backends share one interface:** `mujoco` (real physics, rendered camera, ray-cast LiDAR; used for demos and the video) and `kinematic` (fast numpy twin, no graphics; used for many-trial studies).
+
+## Demo Video
+ 
+**Link:** (link here)
+ 
+The video is 5 minutes or less and shows:
+ 
+- [ ] The robot completing the navigate-and-dock task (nominal trial).
+- [ ] At least one varied or disturbed trial (`--disturb`: 35 % wheel-slip window and a sideways/yaw shove, or a different `--seed`).
+- [ ] The estimate and its 2-sigma uncertainty ellipse alongside the true state (the dashboard video draws both).
+To regenerate the footage:
+ 
+```
+python main.py --backend mujoco --video
+python main.py --backend mujoco --disturb --video --tag disturbed
+```
 
 ## Planning and Control (14628301)
 
@@ -80,6 +113,8 @@ The estimators only receive encoder travel and marker range/bearing. They never 
 ![Model analysis](results/model_analysis.png)
 
 **Results (my part).** [table: position and heading RMSE for odom / ekf / ukf, nominal vs disturbed; average NIS if you log it]
+
+
 
 Install Steps:
     py -m venv .venv
