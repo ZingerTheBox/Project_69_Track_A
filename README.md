@@ -168,7 +168,7 @@ The estimators only receive encoder travel and marker range/bearing. They never 
 - **Disturbed:** mean NEES rises to about 29 in the MuJoCo trial and to 13.8 over 30 kinematic trials (ideal 3), so the filter is **over-confident**. The mean is dominated by two short excursions: the slip window around 15 to 20 s, where NEES peaks near 60 and then recovers, and a jump near the end of the run. Outside those, NEES stays inside the 99 % band. Slip and shoves are not in the filter's model, so it cannot predict errors of that size.
 - **Mean NIS stays at about 0.4** in the disturbed run because the gated-out updates are excluded from the average.
 
-**Model analysis** (`python scripts/analyse_model.py`)
+**Model analysis**
 
 <img src="https://github.com/user-attachments/assets/7dd9d0f7-12a0-4ebf-93cb-659d388c10c5" alt="Controllability and observability analysis" width="900" style="max-width:100%; height:auto;">
 
