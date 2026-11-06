@@ -245,31 +245,53 @@ The noise sweep (Q and R scaled to 0.25×, 1× and 4×, 30 trials per setting) i
 - **The weakest point of the pipeline is the re-plan around the hidden obstacle:** most failures with working estimation are collisions right after it.
 - **Model assumptions:** the estimator and controller assume planar motion with no lateral slip and known marker and obstacle positions. LiDAR is used for obstacle detection only, not for localisation.
 
-Install Steps:
-    py -m venv .venv
-    .venv\Scripts\activate
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
+## Install and Run
 
-IF scripts is disabled:
-    Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+Windows (PowerShell):
 
-Check if everything is properly installed:
-    python -m pytest -q
+```powershell
+py -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-How to get results:
-    main run:
-        python main.py #Prints overview, estimation, control .png's
-    Video creation:
-        python main.py --video --stride 4 #no side camera
+If script execution is disabled: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 
-    Different Commands for different results:
-        python main.py --backend mujoco --video #backend video
-        python main.py --backend mujoco --disturb --video --tag disturbed #Disturbed video and results
-        python main.py --backend mujoco --viewer #Live View, no speed control
-    Different inputs:
-        --backend kinematic, --backend mujoco, --estimator efk, --estimator ukf, --estimator odom, --disturb, --viewer, --video, --gif, --stride (1-4), --tracker lqr, --tracker pid
+macOS / Linux:
 
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Check that everything is installed:
+
+```
+python -m pytest -q
+```
+
+Run:
+
+```
+python main.py                                                      # prints overview, estimation and control PNGs
+python main.py --video --stride 4                                   # video, no side camera
+python main.py --backend mujoco --video                             # MuJoCo video
+python main.py --backend mujoco --disturb --video --tag disturbed   # disturbed video and results
+python main.py --backend mujoco --viewer                            # live view, no speed control
+```
+
+Options: `--backend kinematic | mujoco`, `--estimator ekf | ukf | odom`, `--tracker lqr | pid`, `--disturb`, `--viewer`, `--video`, `--gif`, `--stride 1-4`, `--tag NAME`.
+
+Other scripts:
+
+```
+python scripts/analyse_model.py                       # controllability / observability analysis
+python scripts/identify_platform.py --backend mujoco  # motor lag, odometry scale error, slip loss
+python scripts/run_experiments.py                     # repeated trials
+```
 
 
 
