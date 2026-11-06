@@ -299,5 +299,8 @@ NONE
 
 **acknowledged sources**
 
+Weekly tutorials sources
+https://mujoco.org/
+Robotic toolbox
 
 
