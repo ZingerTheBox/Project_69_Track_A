@@ -104,7 +104,9 @@ Q = diag([10, 10, 5]), R = diag([1, 1]).
 
 The estimators only receive encoder travel and marker range/bearing. They never receive ground truth.
 
-**Model analysis** (`python scripts/analyse_model.py`, plot in `results/model_analysis.png`).
+**Model analysis**
+<img width="1920" height="672" alt="image" src="https://github.com/user-attachments/assets/7dd9d0f7-12a0-4ebf-93cb-659d388c10c5" />
+
 
 - *Controllability* of the linearised tracking-error model [FILL: rank at each reference speed, from the output]. It loses rank at standstill (`v_r = w_r = 0`), and the plot shows the smallest singular value falling to zero as `v_r → 0`. Adding the motor lag gives a 5-state model [FILL: rank, /5].
 - *LQR closed loop:* at `v_r = 0.18 m/s` the discrete closed-loop poles are [FILL], with max |z| = [FILL] (< 1 means stable).
