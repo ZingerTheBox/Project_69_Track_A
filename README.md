@@ -38,6 +38,7 @@ Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and 
 | Camera `C` | Camera at `[0.07, 0, 0.15]` m in `B` | OpenCV: x right, y down, z forward |
  
 **Frame diagram:**
+
 <img src="https://github.com/user-attachments/assets/cbb6bd45-e53e-4871-99c3-57e8e82ba2f8" alt="Frame diagram showing the world, base and camera frames" width="600" style="max-width:100%; height:auto;">
 
 **Two simulation backends share one interface:** `mujoco` (real physics, rendered camera, ray-cast LiDAR; used for demos and the video) and `kinematic` (fast numpy twin, no graphics; used for many-trial studies).
