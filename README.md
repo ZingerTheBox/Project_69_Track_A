@@ -73,7 +73,13 @@ Q = diag([10, 10, 5]), R = diag([1, 1]).
 
 **Ground truth.** The backends expose it only through `truth()`, marked evaluation-only. It goes to the logger and metrics, never to the estimator, planner or controller.
 
-**Results (my part).** [table: LQR vs PID tracking error and docking success, nominal vs disturbed]
+**Results**
+| Tracker | Scenario | Cross-track RMSE (cm) | Final dock error (cm / deg) | Time (s) | Replans | Min clearance (cm) | Control effort | Collided | Success |
+|---|---|---:|---:|---:|---:|---:|---:|:---:|:---:|
+| LQR | Nominal | 0.96 | 0.23 / 0.29 | 37.2 | 1 | 3.61 | 5.08 | No | Yes |
+| PID | Nominal | 1.94 | 0.43 / 0.22 | 36.8 | 1 | 6.85 | 3.85 | No | Yes |
+| LQR | Disturbed | 1.29 | 2.35 / 6.15 | 37.95 | 1 | 0.84 | 5.09 | No | No |
+| PID | Disturbed | 1.95 | 2.54 / 6.30 | 39.15 | 3 | 10.49 | 5.60 | No | No |
 
 ## Estimation and Model Analysis
 
@@ -114,8 +120,12 @@ The estimators only receive encoder travel and marker range/bearing. They never 
 
 ![Model analysis]()
 
-**Results (my part).** [table: position and heading RMSE for odom / ekf / ukf, nominal vs disturbed; average NIS if you log it]
-
+**Results**
+| Estimator | Position RMSE (cm) | Final dock error (cm / deg) | Cross-track RMSE (cm) | Mean NIS | Mean NEES | Min clearance (cm) | Collided | Success |
+|---|---:|---:|---:|---:|---:|---:|:---:|:---:|
+| Odometry only | 195.0 | 359.7 / 71.1 | 2.27 | n/a | 199.6 | -0.52 | Yes | No |
+| EKF | 2.70 | 2.35 / 6.15 | 1.29 | 0.41 | 28.8 | 0.84 | No | No |
+| UKF | 2.94 | 2.43 / 6.09 | 1.27 | 0.39 | 29.4 | 1.45 | No | No |
 
 
 Install Steps:
