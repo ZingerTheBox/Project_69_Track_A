@@ -67,7 +67,7 @@ python main.py --backend mujoco --disturb --video --tag disturbed
 
 | `v_cruise` | `a_lat` | `a_long` | `ds` |
 |---|---|---|---|
-| [0.18m/s] | [0.10m/s^2] | [0.05m/s^2] | [0.02m] |
+| [0.18m/s] | [0.12m/s^2] | [0.25m/s^2] | [0.02m] |
 
 Why these values: cruise speed is about 80 % of `V_MAX` (0.22 m/s), which leaves headroom for the tracker's corrections (the commanded speed reaches the 0.22 m/s limit during the re-plan). The 0.10 m inflation margin on top of the robot radius absorbs the 1 to 3 cm tracking and estimation errors seen in the results below.
 
