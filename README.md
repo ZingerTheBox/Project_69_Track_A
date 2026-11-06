@@ -103,6 +103,11 @@ Q = diag([10, 10, 5]), R = diag([1, 1]).
 | LQR | Disturbed | 1.29 | 2.35 / 6.15 | 37.95 | 1 | 0.84 | 5.09 | No | No |
 | PID | Disturbed | 1.95 | 2.54 / 6.30 | 39.15 | 3 | 10.49 | 5.60 | No | No |
 
+Cross-track RMSE is measured on the **estimated** pose against the reference.
+
+- **Nominal:** both trackers dock successfully. LQR has about half the cross-track error of the PI tracker (0.96 vs 1.94 cm) and a smaller final position error. The PI tracker uses less control effort (3.85 vs 5.08) and keeps more clearance from obstacles (6.85 vs 3.61 cm).
+- **Disturbed:** both trackers fail the dock check in the same way, with about 6° of heading error and 2.4 to 2.5 cm of position error, even though their cross-track errors on the estimated pose are small. The tracker is following its reference well, so the problem is in the pose estimate (see the failure analysis below). The PI tracker needs 3 re-plans against 1 for LQR. LQR passes within 0.84 cm of an obstacle, which is almost a collision, while the PI tracker keeps 10.5 cm.
+
 ## Estimation and Model Analysis
 
 **Estimators** 
