@@ -188,6 +188,42 @@ This is why the estimate degrades whenever fewer than two markers are visible, a
 - **Marker updates are essential.** Without them the position error grows to about 2 m RMSE under disturbance, the robot ends 3.6 m from the dock and collides.
 - **EKF and UKF perform almost identically** in these single trials (differences of a few tenths of a centimetre). Over 30 nominal trials each they also match: both succeed in 28 of 30, with a mean dock error of 0.34 cm (EKF) and 0.38 cm (UKF). The nominal comparison of all three estimators is in the Repeated Trials section. We do not claim either filter is better.
 
+## Repeated Trials
+
+Single trials are not enough to compare methods, so `scripts/run_experiments.py` repeats the task many times per condition. It ran 420 trials on the kinematic backend (30 trials per condition, 4 workers, 96 s). Per-trial results are in `results/experiments.csv`, failed trials with an automatic diagnosis are in `results/failures.csv`, and the figures are `results/fig_*.png`.
+
+Conditions:
+
+- **Nominal:** LQR tracker, EKF estimator, no disturbance.
+- **Disturbed:** nominal plus `--disturb` (wheel-slip window and a shove).
+- **Marker dropout 30 % / 60 %:** nominal, with that fraction of marker detections randomly dropped.
+- **PI tracker** and **UKF:** nominal with one component swapped.
+- **No re-plan:** re-planning disabled, so the hidden obstacle is never avoided.
+- **Odometry only:** the `odom` estimator, with no marker updates.
+
+| Condition | Success | Collisions | Mean dock error (cm / deg) | Est. RMSE (cm) | Mean NEES | Mean NIS |
+|---|---:|---:|---:|---:|---:|---:|
+| Nominal | 93.3 % (28/30) | 6.7 % | 0.34 / 0.82 | 4.40 | 2.67 | 0.70 |
+| Disturbed | 80.0 % (24/30) | 10.0 % | 1.15 / 1.95 | 4.60 | 13.8 | 0.80 |
+| Marker dropout 30 % | 96.7 % (29/30) | 3.3 % | 0.36 / 0.90 | 4.51 | 2.26 | 0.73 |
+| Marker dropout 60 % | 93.3 % (28/30) | 6.7 % | 0.44 / 1.23 | 5.12 | 1.89 | 0.76 |
+| PI tracker | 93.3 % (28/30) | 6.7 % | 1.81 / 0.61 | 4.56 | 3.02 | 0.69 |
+| UKF | 93.3 % (28/30) | 6.7 % | 0.38 / 0.88 | 4.48 | 2.92 | 0.71 |
+| No re-plan | 10.0 % (3/30) | 90.0 % | 0.39 / 1.03 | 5.04 | 3.68 | 0.66 |
+| Odometry only | 0 % (0/30) | 66.7 % | 105.4 / 21.8 | 66.6 | 2.96 | n/a |
+
+What the 30 trials show:
+
+- **Marker updates are essential:** odometry only never succeeds (0/30), while the EKF succeeds in 28/30. Its position error is 66.6 cm RMSE against 4.4 cm.
+- **The LiDAR re-plan is essential:** without it only 3/30 trials succeed and 27/30 collide with the hidden obstacle.
+- **Disturbance:** success drops from 93.3 % to 80.0 %, but with 30 trials the 95 % intervals overlap (nominal 79 to 98 %, disturbed 63 to 90 %), so we cannot claim a real drop in success. The mean dock error does grow about threefold (0.34 to 1.15 cm), and NEES rises from 2.7 to 13.8, so the filter becomes over-confident.
+- **Marker dropout:** dropping 30 % or 60 % of detections shows no measurable effect on success. At 60 % the position RMSE rises from 4.40 to 5.12 cm.
+- **EKF and UKF are equivalent:** the same success rate (28/30) and nearly the same dock error and RMSE.
+- **LQR and PI:** the same success rate. LQR docks closer (0.34 against 1.81 cm) and has about half the cross-track error (2.42 against 4.93 cm). The PI tracker has the smaller heading error (0.61° against 0.82°) and uses less control effort (4.07 against 6.35).
+- **MuJoCo against kinematic:** the single MuJoCo disturbed trial failed, while the kinematic disturbed condition succeeds 24 times in 30. We do not claim the 80 % figure carries over to MuJoCo.
+
+The noise sweep (Q and R scaled to 0.25×, 1× and 4×, 30 trials per setting) is discussed under the estimator parameters above.
+
 Install Steps:
     py -m venv .venv
     .venv\Scripts\activate
