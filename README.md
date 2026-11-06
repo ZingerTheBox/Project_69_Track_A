@@ -30,8 +30,7 @@ Track A, mobile robot: visual waypoint navigation. TurtleBot3 with 2D LiDAR and 
 | Base `B` | Wheel-axle centre | x forward, y left |
 | Camera `C` | Camera at `[0.07, 0, 0.15]` m in `B` | OpenCV: x right, y down, z forward |
  
-**Frame diagram:** (to insert an image of: the world, base and camera frames, the ArUco markers on the walls, and the dock pose 0.30 m in front of marker 0.)
- 
+**Frame diagram:** <img width="1462" height="1224" alt="WhatsApp Image 2026-11-06 at 1 54 31 PM" src="https://github.com/user-attachments/assets/cbb6bd45-e53e-4871-99c3-57e8e82ba2f8" />
 **Two simulation backends share one interface:** `mujoco` (real physics, rendered camera, ray-cast LiDAR; used for demos and the video) and `kinematic` (fast numpy twin, no graphics; used for many-trial studies).
 
 ## Demo Video
@@ -53,7 +52,7 @@ python main.py --backend mujoco --video
 python main.py --backend mujoco --disturb --video --tag disturbed
 ```
 
-## Planning and Control (14628301)
+## Planning and Control
 
 **Planner.** A* on a 0.05 m occupancy grid (obstacles inflated by robot radius + 0.10 m) from the estimated position to a pre-dock point 0.9 m in front of the dock. The path is shortcut by line-of-sight checks and smoothed with Chaikin corner cutting, then given a speed profile limited by curvature (`a_lat`), acceleration (`a_long`), and a slow-down near the dock.
 
@@ -76,7 +75,7 @@ Q = diag([10, 10, 5]), R = diag([1, 1]).
 
 **Results (my part).** [table: LQR vs PID tracking error and docking success, nominal vs disturbed]
 
-## Estimation and Model Analysis (14710976)
+## Estimation and Model Analysis
 
 **Estimators** (`--estimator odom | ekf | ukf`). All three estimate the pose `[x, y, θ]`.
 
@@ -113,7 +112,7 @@ The estimators only receive encoder travel and marker range/bearing. They never 
 | 1 marker, driving an arc | [2]/3 | Driving does not fix the ambiguity|
 | 3 markers, driving | [3]/3 | Full rank with the largest singular values, so the best-conditioned case.|
 
-![Model analysis](results/model_analysis.png)
+![Model analysis]()
 
 **Results (my part).** [table: position and heading RMSE for odom / ekf / ukf, nominal vs disturbed; average NIS if you log it]
 
